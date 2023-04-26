@@ -1,13 +1,14 @@
 package io.github.thiagomachadoo.microservice_avaliador.application;
 
-import io.github.thiagomachadoo.microservice_avaliador.domain.model.SituacaoCliente;
+import io.github.thiagomachadoo.microservice_avaliador.application.exeption.DadosClienteNotFoundException;
+import io.github.thiagomachadoo.microservice_avaliador.application.exeption.ErroComunicacaoMicroservicesException;
+import io.github.thiagomachadoo.microservice_avaliador.application.exeption.ErroSolicitacaoCartaoException;
+import io.github.thiagomachadoo.microservice_avaliador.domain.model.*;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.ws.rs.core.Response;
 
@@ -23,8 +24,37 @@ public class AvaliadorCreditoController {
         return "OK!!";
     }
     @GetMapping(value = "situacao-cliente", params = "cpf")
-    public ResponseEntity<SituacaoCliente> consultaSituacaoCliente(@RequestParam("cpf") String cpf){
-        SituacaoCliente situacaoCliente = avaliadorCreditoService.obterSituacaoCliente(cpf);
-        return ResponseEntity.ok(situacaoCliente);
+    public ResponseEntity consultaSituacaoCliente(@RequestParam("cpf") String cpf){
+        SituacaoCliente situacaoCliente = null;
+        try {
+            situacaoCliente = avaliadorCreditoService.obterSituacaoCliente(cpf);
+            return ResponseEntity.ok(situacaoCliente);
+        } catch (DadosClienteNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (ErroComunicacaoMicroservicesException e) {
+            return ResponseEntity.status(HttpStatus.resolve(e.getStatus())).body(e.getMessage());
+        }
+    }
+
+    @PostMapping
+    public ResponseEntity realizarAvaliacao(@RequestBody DadosAvaliacao dados){
+        try {
+          ResponseAvaliacaoCliente responseAvaliacaoCliente = avaliadorCreditoService.realizarAvaliacao(dados.getCpf(), dados.getRenda());
+          return ResponseEntity.ok(responseAvaliacaoCliente);
+        } catch (DadosClienteNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (ErroComunicacaoMicroservicesException e) {
+            return ResponseEntity.status(HttpStatus.resolve(e.getStatus())).body(e.getMessage());
+        }
+    }
+
+    @PostMapping("solicitacoes-cartao")
+    public ResponseEntity solicitarCartao(@RequestBody DadosDeSolicitacaoEmissaoCartao dados){
+        try{
+            ProtocoloSolicitacaoCartao protocolo = avaliadorCreditoService.solicitarEmissaoDeCartao(dados);
+            return ResponseEntity.ok(protocolo);
+        }catch (ErroSolicitacaoCartaoException e){
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
     }
 }
